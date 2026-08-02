@@ -1,0 +1,61 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $version = & .\scripts\next-version.ps1
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build
+        env:
+          POPNPAD_VERSION: ${{ steps.version.outputs.version }}
+        run: cargo build --release --locked
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item target\release\popnpad.exe popnPad.exe
+          if (-not (Test-Path popnPad.exe)) { throw 'build produced no exe' }
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          gh release create $tag popnPad.exe --target $env:GITHUB_SHA --title $tag --generate-notes

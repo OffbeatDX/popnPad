@@ -1,0 +1,142 @@
+import { Theme } from "theme.slint";
+
+export struct KeyDisc {
+    cx: float,
+    cy: float,
+    r: float,
+}
+
+component PopButton inherits Rectangle {
+    in property <color> tint;
+    in property <bool> held;
+    in property <string> glyph: "";
+    property <length> ring: max(2px, root.width * 0.055);
+    property <color> deep: root.tint.mix(#000000, 0.45);
+    property <color> pale: root.tint.mix(#ffffff, 0.5);
+    clip: false;
+    background: transparent;
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: self.width / 2;
+        background: root.tint;
+        drop-shadow-blur: root.width * 0.34;
+        drop-shadow-color: root.tint.with-alpha(0.8);
+        opacity: root.held ? 1.0 : 0.0;
+        animate opacity {
+            duration: root.held ? 0ms : 200ms;
+            easing: ease-out;
+        }
+    }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: self.width / 2;
+        background: Theme.socket;
+        border-width: 1px;
+        border-color: Theme.plate-edge;
+    }
+
+    dome := Rectangle {
+        x: root.ring;
+        y: root.ring;
+        width: parent.width - 2 * root.ring;
+        height: parent.height - 2 * root.ring;
+        border-radius: self.width / 2;
+        background: @linear-gradient(180deg, root.pale, root.tint 55%, root.deep);
+        opacity: root.held ? 1.0 : 0.82;
+        animate opacity {
+            duration: root.held ? 0ms : 200ms;
+            easing: ease-out;
+        }
+    }
+
+    Rectangle {
+        x: dome.x;
+        y: dome.y;
+        width: dome.width;
+        height: dome.height;
+        border-radius: self.width / 2;
+        background: @linear-gradient(180deg,
+            #ffffff.with-alpha(0.92),
+            root.pale.with-alpha(0.75) 45%,
+            root.tint.with-alpha(0.0));
+        opacity: root.held ? 1.0 : 0.0;
+        animate opacity {
+            duration: root.held ? 0ms : 200ms;
+            easing: ease-out;
+        }
+    }
+
+    Rectangle {
+        x: dome.x + dome.width * 0.17;
+        y: dome.y + dome.height * 0.09;
+        width: dome.width * 0.66;
+        height: dome.height * 0.34;
+        border-radius: self.height / 2;
+        background: @linear-gradient(180deg,
+            #ffffff.with-alpha(0.55),
+            #ffffff.with-alpha(0.0));
+        opacity: root.held ? 0.75 : 0.4;
+    }
+
+    if root.glyph != "" : Text {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        text: root.glyph;
+        font-size: clamp(root.width * 0.42, 14px, 64px);
+        color: root.held ? #ffffff.with-alpha(0.9) : #ffffff.with-alpha(0.62);
+    }
+}
+
+export component PopnPanel inherits Rectangle {
+    in property <[KeyDisc]> discs;
+    in property <[bool]> key-held;
+    in property <float> band-x;
+    in property <float> band-y;
+    in property <float> band-w;
+    in property <float> band-h;
+
+    background: Theme.bg;
+
+    pure function tint-of(i: int) -> color {
+        i == 9
+            ? Theme.pop-kun-l
+            : i == 10
+                ? Theme.pop-kun-r
+                : (i == 0 || i == 8)
+                    ? Theme.pop-white
+                    : (i == 1 || i == 7)
+                        ? Theme.pop-yellow
+                        : (i == 2 || i == 6)
+                            ? Theme.pop-green
+                            : (i == 3 || i == 5) ? Theme.pop-blue : Theme.pop-red;
+    }
+
+    if root.band-w > 1 : Rectangle {
+        x: root.band-x * 1px;
+        y: root.band-y * 1px;
+        width: root.band-w * 1px;
+        height: root.band-h * 1px;
+        border-radius: min(self.height, self.width) * 0.14;
+        background: @linear-gradient(180deg, Theme.plate, Theme.bg.mix(Theme.plate, 0.5));
+        border-width: 1px;
+        border-color: Theme.plate-edge;
+    }
+
+    for d[i] in root.discs : PopButton {
+        x: (d.cx - d.r) * 1px;
+        y: (d.cy - d.r) * 1px;
+        width: d.r * 2px;
+        height: d.r * 2px;
+        tint: root.tint-of(i);
+        held: i < root.key-held.length ? root.key-held[i] : false;
+        glyph: i >= 9 ? "☆" : "";
+    }
+}

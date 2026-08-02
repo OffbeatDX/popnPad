@@ -1,0 +1,753 @@
+import { Theme } from "theme.slint";
+import { PopnPanel, KeyDisc } from "popn.slint";
+import { MonitorSelect, ToggleTile, SliderRow } from "settings.slint";
+
+export { Theme, KeyDisc }
+
+component Stat inherits VerticalLayout {
+    in property <string> label;
+    in property <string> value;
+    in property <color> tint: Theme.text1;
+    spacing: 0px;
+    Text {
+        text: root.label;
+        color: Theme.text3;
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+    Text {
+        text: root.value;
+        color: root.tint;
+        font-size: 19px;
+        font-weight: 800;
+    }
+}
+
+export component PopnWindow inherits Window {
+    in property <string> window-title: "pop'n music — Touch Controller";
+    in property <string> app-version;
+    title: root.window-title;
+    icon: @image-url("../assets/icon.png");
+    default-font-family: "Segoe UI";
+    background: Theme.bg;
+    no-frame: !root.windowed;
+    preferred-width: 1600px;
+    preferred-height: 900px;
+    min-width: 900px;
+    min-height: 600px;
+
+    callback quit();
+    callback settings-changed();
+    callback mark-stall();
+
+    in-out property <bool> diagnostics: false;
+    in-out property <bool> settings-open: false;
+
+    in property <int> live-contacts;
+    in property <int> peak-contacts;
+    in property <int> dropped-contacts;
+    in property <string> api-status;
+    in property <bool> api-connected;
+    in property <int> digital-events;
+    in property <[bool]> keys;
+    in property <[string]> log;
+
+    in property <[KeyDisc]> key-discs;
+    in property <float> band-x;
+    in property <float> band-y;
+    in property <float> band-w;
+    in property <float> band-box-h;
+
+    in-out property <float> playfield-fit: 1.0;
+    in-out property <float> button-size: 1.0;
+    in-out property <float> panel-pos: 0.5;
+    in-out property <bool> single-row: false;
+    in-out property <int> api-port: 1337;
+    in-out property <bool> flip-vertical: false;
+    in-out property <bool> windowed: false;
+    in-out property <bool> fit-sub-screen: true;
+    in-out property <int> pad-monitor: 0;
+    in property <[string]> monitor-options;
+    property <string> settings-help: "";
+    property <length> settings-help-abs-x: 0px;
+    property <length> settings-help-abs-y: 0px;
+
+    in-out property <bool> nav-active: false;
+    in property <string> nav-status: "";
+    callback nav-toggled();
+
+    out property <float> panel-y: root.band-h / 1px;
+    out property <float> panel-w: root.width / 1px;
+    out property <float> panel-h: max(1px, root.height - root.band-h) / 1px;
+
+    out property <bool> keys-interactive: !root.settings-open && !root.nav-active;
+
+    callback mouse-key(float, float, bool);
+
+    property <length> band-h: root.diagnostics && !root.nav-active ? 110px : 0px;
+    in property <bool> mouse-keys: false;
+
+    if !root.nav-active : PopnPanel {
+        x: 0;
+        y: root.band-h;
+        width: root.width;
+        height: max(1px, root.height - root.band-h);
+        discs: root.key-discs;
+        key-held: root.keys;
+        band-x: root.band-x;
+        band-y: root.band-y;
+        band-w: root.band-w;
+        band-h: root.band-box-h;
+    }
+
+    if root.mouse-keys && !root.nav-active : TouchArea {
+        x: 0;
+        y: root.band-h;
+        width: root.width;
+        height: max(1px, root.height - root.band-h);
+        moved => {
+            if (self.pressed) {
+                root.mouse-key(self.mouse-x / 1px, (root.band-h + self.mouse-y) / 1px, false);
+            }
+        }
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                root.mouse-key(self.mouse-x / 1px, (root.band-h + self.mouse-y) / 1px, false);
+            }
+            if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                root.mouse-key(self.mouse-x / 1px, (root.band-h + self.mouse-y) / 1px, true);
+            }
+        }
+    }
+
+    Rectangle {
+        x: 8px;
+        y: 8px;
+        width: 44px;
+        height: 44px;
+        border-radius: 6px;
+        background: gear-ta.pressed ? Theme.surface2 : #00000066;
+        border-width: 1px;
+        border-color: Theme.border;
+        z: 20;
+        Text {
+            width: 100%;
+            height: 100%;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            text: "⚙";
+            font-size: 22px;
+            color: Theme.text1;
+        }
+        gear-ta := TouchArea {
+            clicked => {
+                if (root.nav-active) {
+                    root.nav-active = false;
+                    root.nav-toggled();
+                }
+                root.settings-open = !root.settings-open;
+            }
+        }
+    }
+
+    Rectangle {
+        x: 60px;
+        y: 8px;
+        width: 64px;
+        height: 44px;
+        border-radius: 6px;
+        background: root.nav-active
+            ? (nav-ta.pressed ? Theme.accent-a.with-alpha(0.55) : Theme.accent-a.with-alpha(0.35))
+            : (nav-ta.pressed ? Theme.surface2 : #00000066);
+        border-width: 1px;
+        border-color: root.nav-active ? Theme.accent-a : Theme.border;
+        z: 20;
+        Text {
+            width: 100%;
+            height: 100%;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            text: root.nav-active ? "PAD" : "NAV";
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: root.nav-active ? Theme.accent-a : Theme.text1;
+        }
+        nav-ta := TouchArea {
+            clicked => {
+                root.nav-active = !root.nav-active;
+                root.nav-toggled();
+            }
+        }
+    }
+
+    if root.nav-status != "" && !root.nav-active : Text {
+        x: 132px;
+        y: 8px;
+        width: max(0px, root.width - 196px);
+        height: 44px;
+        text: root.nav-status;
+        font-size: 13px;
+        font-weight: 600;
+        color: Theme.bad;
+        vertical-alignment: center;
+        overflow: elide;
+        z: 20;
+    }
+
+    if !root.nav-active : Rectangle {
+        x: root.width - 52px;
+        y: 8px;
+        width: 44px;
+        height: 44px;
+        border-radius: 6px;
+        background: close-win-ta.pressed ? Theme.danger-hover : #00000066;
+        border-width: 1px;
+        border-color: Theme.border;
+        z: 20;
+        Text {
+            width: 100%;
+            height: 100%;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            text: "X";
+            font-family: "Segoe UI";
+            font-size: 22px;
+            font-weight: 700;
+            color: Theme.text1;
+        }
+        close-win-ta := TouchArea {
+            clicked => { root.quit(); }
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.up) {
+                    root.quit();
+                }
+            }
+        }
+    }
+
+    if root.settings-open : Rectangle {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        background: #000000aa;
+        z: 30;
+        TouchArea {
+            clicked => {
+                root.settings-open = false;
+                root.settings-help = "";
+                root.settings-changed();
+            }
+        }
+
+        settings-panel := Rectangle {
+            x: max(24px, (root.width - self.width) / 2);
+            y: max(50px, (root.height - self.height) / 2);
+            width: min(760px, root.width * 0.7);
+            property <length> max-h: root.height - 100px;
+            property <length> chrome: 20px + settings-title.height + 12px + 12px + 52px + 20px;
+            property <length> body-pref: settings-body.preferred-height;
+            property <bool> fits: self.chrome + self.body-pref <= self.max-h;
+            property <length> body-h: self.fits ? self.body-pref : self.max-h - self.chrome;
+            height: self.chrome + self.body-h;
+            border-radius: 10px;
+            background: Theme.surface;
+            border-width: 1px;
+            border-color: Theme.border;
+            clip: true;
+
+            VerticalLayout {
+                padding: 20px;
+                spacing: 12px;
+
+                settings-title := HorizontalLayout {
+                    height: 28px;
+                    Text {
+                        text: "SETTINGS";
+                        font-size: 22px;
+                        font-weight: 800;
+                        letter-spacing: 2px;
+                        color: Theme.text1;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: root.app-version;
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: Theme.text3;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Flickable {
+                    height: settings-panel.body-h;
+                    viewport-width: self.width;
+                    viewport-height: settings-body.preferred-height;
+                    flicked => { root.settings-help = ""; }
+
+                    settings-body := VerticalLayout {
+                        width: 100%;
+                        spacing: 14px;
+
+                        MonitorSelect {
+                            label: "Pad Monitor";
+                            help: "Which display hosts this controller (the nine buttons and both Pop-Kuns). The game's Sub Screen is fitted to this same display, and NAV switches between the two. SAVE repositions the window when Windowed mode is off.";
+                            active-help: root.settings-help;
+                            options: root.monitor-options;
+                            current-index <=> root.pad-monitor;
+                            ask-help(t, ax, ay) => {
+                                if root.settings-help == t {
+                                    root.settings-help = "";
+                                } else {
+                                    root.settings-help = t;
+                                    root.settings-help-abs-x = ax;
+                                    root.settings-help-abs-y = ay;
+                                }
+                            }
+                            dismiss-help => {
+                                root.settings-help = "";
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ToggleTile {
+                                label: "Single row";
+                                help: "Lays all nine buttons and both Pop-Kuns in one straight line instead of the cabinet's staggered two rows. Everything sits shoulder to shoulder, so the buttons come out smaller but the panel is only one row tall.";
+                                active-help: root.settings-help;
+                                checked <=> root.single-row;
+                                ask-help(t, ax, ay) => {
+                                    if root.settings-help == t {
+                                        root.settings-help = "";
+                                    } else {
+                                        root.settings-help = t;
+                                        root.settings-help-abs-x = ax;
+                                        root.settings-help-abs-y = ay;
+                                    }
+                                }
+                                dismiss-help => {
+                                    root.settings-help = "";
+                                }
+                            }
+                            ToggleTile {
+                                label: "Flip pad 180°";
+                                help: "Rotates the Pad Monitor in Windows display settings (not the UI). Use for an upside-down mounted touchscreen. Restores to 0° when turned off or on quit.";
+                                active-help: root.settings-help;
+                                checked <=> root.flip-vertical;
+                                ask-help(t, ax, ay) => {
+                                    if root.settings-help == t {
+                                        root.settings-help = "";
+                                    } else {
+                                        root.settings-help = t;
+                                        root.settings-help-abs-x = ax;
+                                        root.settings-help-abs-y = ay;
+                                    }
+                                }
+                                dismiss-help => {
+                                    root.settings-help = "";
+                                }
+                            }
+                            ToggleTile {
+                                label: "Windowed mode";
+                                help: "Adds a normal window frame and stops pinning the controller to the Pad Monitor.";
+                                active-help: root.settings-help;
+                                checked <=> root.windowed;
+                                ask-help(t, ax, ay) => {
+                                    if root.settings-help == t {
+                                        root.settings-help = "";
+                                    } else {
+                                        root.settings-help = t;
+                                        root.settings-help-abs-x = ax;
+                                        root.settings-help-abs-y = ay;
+                                    }
+                                }
+                                dismiss-help => {
+                                    root.settings-help = "";
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ToggleTile {
+                                label: "Fit Sub Screen";
+                                help: "Strips the window frame off the game's \"… Sub Screen\" window and sizes it to fill the Pad Monitor, so NAV switches between two screens that line up exactly. Its original frame and position are put back when this is turned off or popnPad quits.";
+                                active-help: root.settings-help;
+                                checked <=> root.fit-sub-screen;
+                                ask-help(t, ax, ay) => {
+                                    if root.settings-help == t {
+                                        root.settings-help = "";
+                                    } else {
+                                        root.settings-help = t;
+                                        root.settings-help-abs-x = ax;
+                                        root.settings-help-abs-y = ay;
+                                    }
+                                }
+                                dismiss-help => {
+                                    root.settings-help = "";
+                                }
+                            }
+                            ToggleTile {
+                                label: "Diagnostics";
+                                help: "Top band with live touch contacts, SpiceAPI status, button lamps, event log, and a MARK button (tap after a stall to dump SpiceAPI details into popnpad.log). For setup/debug — turn off for play.";
+                                active-help: root.settings-help;
+                                checked <=> root.diagnostics;
+                                ask-help(t, ax, ay) => {
+                                    if root.settings-help == t {
+                                        root.settings-help = "";
+                                    } else {
+                                        root.settings-help = t;
+                                        root.settings-help-abs-x = ax;
+                                        root.settings-help-abs-y = ay;
+                                    }
+                                }
+                                dismiss-help => {
+                                    root.settings-help = "";
+                                }
+                            }
+                        }
+
+                        SliderRow {
+                            label: "Playfield fit";
+                            help: "How much of the window width the button cluster may use. 100% = as large as the display allows; lower shrinks it toward the centre.";
+                            active-help: root.settings-help;
+                            min-v: 0.0;
+                            max-v: 1.0;
+                            default-value: 1.0;
+                            value <=> root.playfield-fit;
+                            display: Math.round(root.playfield-fit * 100) + "%";
+                            ask-help(t, ax, ay) => {
+                                if root.settings-help == t {
+                                    root.settings-help = "";
+                                } else {
+                                    root.settings-help = t;
+                                    root.settings-help-abs-x = ax;
+                                    root.settings-help-abs-y = ay;
+                                }
+                            }
+                            dismiss-help => {
+                                root.settings-help = "";
+                            }
+                        }
+                        SliderRow {
+                            label: "Button size";
+                            help: "Scales the buttons down from the largest size that fits. Smaller buttons open up gaps between them, which are dead — 100% keeps them touching like the cabinet.";
+                            active-help: root.settings-help;
+                            min-v: 0.5;
+                            max-v: 1.0;
+                            default-value: 1.0;
+                            value <=> root.button-size;
+                            display: Math.round(root.button-size * 100) + "%";
+                            ask-help(t, ax, ay) => {
+                                if root.settings-help == t {
+                                    root.settings-help = "";
+                                } else {
+                                    root.settings-help = t;
+                                    root.settings-help-abs-x = ax;
+                                    root.settings-help-abs-y = ay;
+                                }
+                            }
+                            dismiss-help => {
+                                root.settings-help = "";
+                            }
+                        }
+                        SliderRow {
+                            label: "Panel position";
+                            help: "Where the cluster sits vertically. 0% = tucked up under the top bar; 100% = dropped to the bottom edge, which is usually the reachable spot on a flat-mounted screen.";
+                            active-help: root.settings-help;
+                            min-v: 0.0;
+                            max-v: 1.0;
+                            default-value: 0.5;
+                            value <=> root.panel-pos;
+                            display: Math.round(root.panel-pos * 100) + "%";
+                            ask-help(t, ax, ay) => {
+                                if root.settings-help == t {
+                                    root.settings-help = "";
+                                } else {
+                                    root.settings-help = t;
+                                    root.settings-help-abs-x = ax;
+                                    root.settings-help-abs-y = ay;
+                                }
+                            }
+                            dismiss-help => {
+                                root.settings-help = "";
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 52px;
+                    border-radius: 5px;
+                    background: apply-ta.pressed ? Theme.accent-a.with-alpha(0.5) : Theme.accent-a.with-alpha(0.25);
+                    border-width: 1px;
+                    border-color: Theme.accent-a;
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        text: "SAVE";
+                        font-size: 16px;
+                        font-weight: 800;
+                        letter-spacing: 2px;
+                        color: Theme.accent-a;
+                    }
+                    apply-ta := TouchArea {
+                        clicked => {
+                            root.settings-open = false;
+                            root.settings-help = "";
+                            root.settings-changed();
+                        }
+                    }
+                }
+            }
+
+            if root.settings-help != "" : help-card := Rectangle {
+                width: min(300px, parent.width - 24px);
+                height: help-col.preferred-height;
+                x: clamp(
+                    root.settings-help-abs-x - settings-panel.absolute-position.x + 26px,
+                    12px,
+                    parent.width - self.width - 12px);
+                y: clamp(
+                    root.settings-help-abs-y - settings-panel.absolute-position.y - 4px,
+                    12px,
+                    parent.height - self.height - 12px);
+                z: 40;
+                border-radius: 8px;
+                background: Theme.surface2;
+                border-width: 1px;
+                border-color: Theme.accent-a.with-alpha(0.45);
+                drop-shadow-blur: 18px;
+                drop-shadow-color: #000000cc;
+
+                help-col := VerticalLayout {
+                    width: 100%;
+                    padding: 12px;
+                    spacing: 6px;
+                    Text {
+                        width: 100%;
+                        text: root.settings-help;
+                        font-size: 13px;
+                        color: Theme.text1;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: "Tap ? again to dismiss";
+                        font-size: 11px;
+                        color: Theme.text3;
+                    }
+                }
+            }
+        }
+    }
+
+    if root.diagnostics && !root.nav-active : diag-band := Rectangle {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.band-h;
+        background: Theme.surface.with-alpha(0.82);
+        z: 10;
+        clip: true;
+        Rectangle {
+            y: parent.height - 1px;
+            height: 1px;
+            background: Theme.border;
+        }
+
+        property <length> side-pad: 60px;
+        property <length> strip-pad: 8px;
+        property <length> top-strip-h: 36px;
+        property <length> bot-strip-h: diag-band.height - 2 * diag-band.strip-pad - diag-band.top-strip-h - 8px;
+
+        HorizontalLayout {
+            x: diag-band.side-pad;
+            y: diag-band.strip-pad;
+            width: diag-band.width - 2 * diag-band.side-pad;
+            height: diag-band.top-strip-h;
+            spacing: 20px;
+            alignment: center;
+
+            Stat {
+                label: "LIVE";
+                value: root.live-contacts;
+            }
+            Stat {
+                label: "PEAK";
+                value: root.peak-contacts;
+                tint: root.peak-contacts >= 8 ? Theme.ok : Theme.text1;
+            }
+            Stat {
+                label: "DROPPED";
+                value: root.dropped-contacts;
+                tint: root.dropped-contacts > 0 ? Theme.bad : Theme.text3;
+            }
+
+            Rectangle {
+                width: 1px;
+                height: 28px;
+                background: Theme.border;
+            }
+
+            VerticalLayout {
+                spacing: 2px;
+                Text {
+                    text: root.digital-events + " edges";
+                    font-size: 11px;
+                    color: Theme.text3;
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                Rectangle {
+                    width: 8px;
+                    height: 8px;
+                    y: 6px;
+                    border-radius: 4px;
+                    background: root.api-connected ? Theme.ok : Theme.text3;
+                }
+                Text {
+                    text: "spiceapi " + root.api-status;
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: root.api-connected ? Theme.ok : Theme.text3;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle {
+                width: 72px;
+                height: 30px;
+                border-radius: 4px;
+                background: mark-ta.pressed ? Theme.bad.with-alpha(0.55) : Theme.bad.with-alpha(0.22);
+                border-width: 1px;
+                border-color: Theme.bad;
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    text: "MARK";
+                    font-size: 12px;
+                    font-weight: 800;
+                    letter-spacing: 1px;
+                    color: Theme.bad;
+                }
+                mark-ta := TouchArea {
+                    clicked => { root.mark-stall(); }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            x: diag-band.side-pad;
+            y: diag-band.strip-pad + diag-band.top-strip-h + 8px;
+            width: diag-band.width - 2 * diag-band.side-pad;
+            height: diag-band.bot-strip-h;
+            spacing: 16px;
+            alignment: start;
+
+            HorizontalLayout {
+                spacing: 4px;
+                width: 320px;
+                height: 100%;
+                for on[i] in root.keys : Rectangle {
+                    height: 26px;
+                    y: 0;
+                    horizontal-stretch: 1;
+                    min-width: 18px;
+                    border-radius: 3px;
+                    background: on ? Theme.accent-a : Theme.surface2.with-alpha(0.6);
+                    border-width: 1px;
+                    border-color: on ? Theme.accent-a : Theme.border;
+                    if i < 9 : Text {
+                        width: 100%;
+                        height: 100%;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        text: i + 1;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: on ? Theme.text-on-accent : Theme.text3;
+                    }
+                    if i >= 9 : Text {
+                        width: 100%;
+                        height: 100%;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        text: i == 9 ? "R" : "B";
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: on ? Theme.text-on-accent : Theme.text3;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                spacing: 2px;
+                width: 260px;
+                height: 100%;
+                alignment: start;
+                Text {
+                    text: "CONTACTS";
+                    font-size: 9px;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    color: Theme.text3;
+                }
+                HorizontalLayout {
+                    spacing: 16px;
+                    alignment: start;
+                    Text {
+                        text: "live " + root.live-contacts;
+                        font-size: 13px;
+                        font-weight: 700;
+                        color: root.live-contacts > 0 ? Theme.ok : Theme.text3;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "peak " + root.peak-contacts;
+                        font-size: 13px;
+                        font-weight: 700;
+                        color: Theme.text2;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "dropped " + root.dropped-contacts;
+                        font-size: 13px;
+                        font-weight: 700;
+                        color: root.dropped-contacts > 0 ? Theme.bad : Theme.text3;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                min-width: 220px;
+                height: 100%;
+                clip: true;
+                background: Theme.bg.with-alpha(0.35);
+                border-radius: 4px;
+                VerticalLayout {
+                    padding: 4px;
+                    spacing: 0px;
+                    alignment: end;
+                    for line in root.log : Text {
+                        text: line;
+                        font-family: "Consolas";
+                        font-size: 10px;
+                        color: Theme.text2;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+    }
+}
