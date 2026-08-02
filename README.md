@@ -1,4 +1,4 @@
-# popnPad
+# popnPad / [PChordPad](https://github.com/OffbeatDX/PChordPad)
 
 Touch pad for pop'n under [spice2x](https://spice2x.github.io/).
 
